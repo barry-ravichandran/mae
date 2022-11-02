@@ -29,6 +29,7 @@ import timm.optim.optim_factory as optim_factory
 
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.setup_vfold_files import setup_vfold_files,setup_training_vfold
 
 import models_mae
 
@@ -119,20 +120,19 @@ def main(args):
 
     cudnn.benchmark = True
 
-    # simple augmentation
-    transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
-    print(dataset_train)
+    # monai data vfold setup
+    img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed"
+    prefix = [str(x+1).zfill(3) for x in range(32)]
+    num_folds = 1
+    num_slices = 3
+    vfold_num = 0
+    train_files= setup_vfold_files(img_dir, prefix, num_folds)
 
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            train_files, num_replicas=num_tasks, rank=global_rank, shuffle=True
         )
         print("Sampler_train = %s" % str(sampler_train))
     else:
@@ -144,13 +144,7 @@ def main(args):
     else:
         log_writer = None
 
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-    )
+    train_loader = setup_training_vfold(train_files, num_slices, vfold_num)
     
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
@@ -187,9 +181,9 @@ def main(args):
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+            train_loader.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
-            model, data_loader_train,
+            model, train_loader,
             optimizer, device, epoch, loss_scaler,
             log_writer=log_writer,
             args=args
