@@ -15,12 +15,14 @@ from monai.transforms import (
 import torch
 import ubelt as ub
 import pint
+import site
 site.addsitedir('/data/barry.ravichandran/repos/AnatomicRecon-POCUS-AI/ARGUS')
 from ARGUS_Transforms import ARGUS_RandSpatialCropSlicesd
 Ureg = pint.UnitRegistry()
 
 def setup_vfold_files(img_dir, p_prefix, num_folds):
-    all_train_images = sorted(glob(os.path.join(img_dir, "preprocessed","butterfly-iq", ".mha")))
+    all_train_images = [sorted(glob(os.path.join(img_dir,"ONUS-"+ x + "HV", "butterfly-iq", "*.mha"))) for x in p_prefix]
+    all_train_images = [i for img in all_train_images for i in img]
     total_bytes = 0
     for p in all_train_images:
         p = ub.Path(p)
@@ -59,8 +61,8 @@ def setup_vfold_files(img_dir, p_prefix, num_folds):
         tr_folds = list(np.concatenate(tr_folds).flat)
         train_files.append(
             [
-                {"image": img, "label": seg}
-                for img, seg in zip(
+                {"image": img}
+                for img in zip(
                     [
                         im
                         for im in all_train_images
@@ -77,26 +79,25 @@ def setup_vfold_files(img_dir, p_prefix, num_folds):
 def setup_training_vfold(train_files, num_slices, vfold_num):
     train_transforms = Compose(
         [
-        LoadImaged(keys=["image", "label"]),
+        LoadImaged(keys=["image"]),
         AsChannelFirstd(keys='image'),
-        AsChannelFirstd(keys='label'),
         ScaleIntensityRanged(
             a_min=0, a_max=255,
             b_min=0.0, b_max=1.0,
             keys=["image"]),
         ARGUS_RandSpatialCropSlicesd(
-            num_slices=[num_slices,1],
+            num_slices=[num_slices],
             axis=0,
-            reduce_to_statistics=[True,False],
+            reduce_to_statistics=[True],
             require_labeled=True,
             extended=False,
             include_center_slice=True,
             include_gradient=True,
-            keys=['image','label']),
+            keys=['image']),
         RandFlipd(prob=0.5, 
             spatial_axis=0,
-            keys=['image', 'label']),
-        ToTensord(keys=["image", "label"], dtype=torch.float)
+            keys=['image']),
+        ToTensord(keys=["image"], dtype=torch.float)
         ])
 
     cache_rate_train = 1.0
