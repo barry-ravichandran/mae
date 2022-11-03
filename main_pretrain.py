@@ -73,7 +73,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
+    parser.add_argument('--data_path', default='/data/barry.ravichandran/Pretrain_data/preprocessed/', type=str,
                         help='dataset path')
 
     parser.add_argument('--output_dir', default='./output_dir',
@@ -122,7 +122,7 @@ def main(args):
 
     # monai data vfold setup
     img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed"
-    prefix = [str(x+1).zfill(3) for x in range(32)]
+    prefix = [str(x+1).zfill(3) for x in [8,10,11,12,13]]
     num_folds = 1
     num_slices = 3
     vfold_num = 0
