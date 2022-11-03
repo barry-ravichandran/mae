@@ -21,7 +21,7 @@ from ARGUS_Transforms import ARGUS_RandSpatialCropSlicesd
 Ureg = pint.UnitRegistry()
 
 def setup_vfold_files(img_dir, p_prefix, num_folds):
-    all_train_images = [sorted(glob(os.path.join(img_dir,"ONUS-"+ x + "HV", "butterfly-iq", "*.mha"))) for x in p_prefix]
+    all_train_images = [sorted(glob(os.path.join(img_dir,"ONUS-"+ x + "HV","*.mha"))) for x in p_prefix]
     all_train_images = [i for img in all_train_images for i in img]
     total_bytes = 0
     for p in all_train_images:

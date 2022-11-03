@@ -121,8 +121,8 @@ def main(args):
     cudnn.benchmark = True
 
     # monai data vfold setup
-    img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed"
-    prefix = [str(x+1).zfill(3) for x in [8,10,11,12,13]]
+    img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed_resized_butterfly"
+    prefix = [str(x+1).zfill(3) for x in range(38) if x not in [*range(2,8),9]]
     num_folds = 1
     num_slices = 3
     vfold_num = 0
