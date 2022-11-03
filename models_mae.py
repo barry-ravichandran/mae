@@ -17,6 +17,8 @@ import torch.nn as nn
 from timm.models.vision_transformer import PatchEmbed, Block
 from monai.networks.blocks.patchembedding import PatchEmbeddingBlock
 from monai.networks.blocks.transformerblock import TransformerBlock
+from monai.utils import ensure_tuple_rep, optional_import
+import numpy as np
 
 from util.pos_embed import get_2d_sincos_pos_embed
 
@@ -42,7 +44,9 @@ class MaskedAutoencoderViT(nn.Module):
             dropout_rate=0.0,
             spatial_dims=2
         )
-        num_patches = self.patch_embed.num_patches
+        img_size = ensure_tuple_rep(img_size, 2)
+        patch_size = ensure_tuple_rep(patch_size, 2)
+        num_patches = np.prod([im_d // p_d for im_d, p_d in zip(img_size, patch_size)])
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
