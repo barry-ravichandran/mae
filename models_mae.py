@@ -14,8 +14,9 @@ from functools import partial
 import torch
 import torch.nn as nn
 
-from timm.models.vision_transformer import PatchEmbed, Block
-from monai.networks.blocks.patchembedding import PatchEmbeddingBlock
+# from timm.models.vision_transformer import PatchEmbed, Block
+from monai.networks.layers import Conv, trunc_normal_
+from monai.networks.blocks.patchembedding import PatchEmbed
 from monai.networks.blocks.transformerblock import TransformerBlock
 from monai.utils import ensure_tuple_rep, optional_import
 import numpy as np
@@ -26,7 +27,7 @@ from util.pos_embed import get_2d_sincos_pos_embed
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size=[320,480], patch_size=16, in_chans=3,
+    def __init__(self, img_size=[224,224], patch_size=16, in_chans=6,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
@@ -34,19 +35,20 @@ class MaskedAutoencoderViT(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.patch_embed = PatchEmbeddingBlock(
-            in_channels=6,
-            img_size=img_size,
+        self.spatial_dims = 2
+        self.patch_embed = PatchEmbed(
             patch_size=patch_size,
-            hidden_size=embed_dim,
-            num_heads=num_heads,
-            pos_embed="conv",
-            dropout_rate=0.0,
-            spatial_dims=2
+            in_chans=in_chans,
+            embed_dim=embed_dim,
+            norm_layer=norm_layer,
+            spatial_dims=self.spatial_dims
         )
-        img_size = ensure_tuple_rep(img_size, 2)
-        patch_size = ensure_tuple_rep(patch_size, 2)
+        img_size = ensure_tuple_rep(img_size, self.spatial_dims)
+        patch_size = ensure_tuple_rep(patch_size, self.spatial_dims)
         self.num_patches = np.prod([im_d // p_d for im_d, p_d in zip(img_size, patch_size)])
+        self.proj = Conv[Conv.CONV, self.spatial_dims](
+            in_channels=in_chans, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size
+        )
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
@@ -89,7 +91,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        w = self.patch_embed.proj.weight.data
+        w = self.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)

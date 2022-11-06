@@ -16,8 +16,7 @@ import torch
 import ubelt as ub
 import pint
 import site
-site.addsitedir('/data/barry.ravichandran/repos/AnatomicRecon-POCUS-AI/ARGUS')
-from ARGUS_Transforms import ARGUS_RandSpatialCropSlicesd
+from util.ARGUS_Transforms import ARGUS_RandSpatialCropSlicesd
 Ureg = pint.UnitRegistry()
 
 def setup_vfold_files(img_dir, p_prefix, num_folds):
@@ -89,7 +88,6 @@ def setup_training_vfold(train_files, num_slices, vfold_num):
             num_slices=[num_slices],
             axis=0,
             reduce_to_statistics=[True],
-            require_labeled=True,
             extended=False,
             include_center_slice=True,
             include_gradient=True,

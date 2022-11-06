@@ -48,7 +48,7 @@ def get_args_parser():
     parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
 
-    parser.add_argument('--input_size', default=224, type=int,
+    parser.add_argument('--input_size', default=[224,224], type=list,
                         help='images input size')
 
     parser.add_argument('--mask_ratio', default=0.75, type=float,
@@ -121,7 +121,7 @@ def main(args):
     cudnn.benchmark = True
 
     # monai data vfold setup
-    img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed_resized_butterfly"
+    img_dir = "/data/barry.ravichandran/Pretrain_data/preprocessed_resized_224_butterfly"
     prefix = [str(x+1).zfill(3) for x in range(38) if x not in [*range(2,8),9]]
     num_folds = 1
     num_slices = 3
