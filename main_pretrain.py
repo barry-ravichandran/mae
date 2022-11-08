@@ -35,6 +35,8 @@ import models_mae
 
 from engine_pretrain import train_one_epoch
 
+from monai.utils.misc import first
+from monai.data import DataLoader
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
@@ -48,7 +50,7 @@ def get_args_parser():
     parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
 
-    parser.add_argument('--input_size', default=[224,224], type=list,
+    parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
 
     parser.add_argument('--mask_ratio', default=0.75, type=float,
@@ -125,26 +127,30 @@ def main(args):
     prefix = [str(x+1).zfill(3) for x in range(38) if x not in [*range(2,8),9]]
     num_folds = 1
     num_slices = 3
-    vfold_num = 0
-    train_files= setup_vfold_files(img_dir, prefix, num_folds)
-
-    if True:  # args.distributed:
+    train_files = setup_vfold_files(img_dir, prefix, num_folds)
+    train_ds = setup_training_vfold(train_files, num_slices)
+    if False:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
-            train_files, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            train_ds, num_replicas=num_tasks, rank=global_rank, shuffle=True
         )
         print("Sampler_train = %s" % str(sampler_train))
     else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        sampler_train = torch.utils.data.RandomSampler(train_ds)
 
-    if global_rank == 0 and args.log_dir is not None:
-        os.makedirs(args.log_dir, exist_ok=True)
-        log_writer = SummaryWriter(log_dir=args.log_dir)
-    else:
-        log_writer = None
-
-    train_loader = setup_training_vfold(train_files, num_slices, vfold_num)
+    # if global_rank == 0 and args.log_dir is not None:
+    os.makedirs(args.log_dir, exist_ok=True)
+    log_writer = SummaryWriter(log_dir=args.log_dir)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=8,
+        shuffle=False,
+        num_workers=args.num_workers,
+        sampler=sampler_train
+        # pin_memory=args.pin_mem,
+        # drop_last=True
+    )
     
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
