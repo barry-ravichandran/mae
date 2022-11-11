@@ -17,6 +17,7 @@ import torch.nn as nn
 # from timm.models.vision_transformer import PatchEmbed, Block
 from monai.networks.layers import Conv, trunc_normal_
 from monai.networks.blocks.patchembedding import PatchEmbed
+# from timm.models.vision_transformer import PatchEmbed
 from monai.networks.blocks.transformerblock import TransformerBlock
 from monai.utils import ensure_tuple_rep, optional_import
 import numpy as np
@@ -43,12 +44,16 @@ class MaskedAutoencoderViT(nn.Module):
             norm_layer=norm_layer,
             spatial_dims=self.spatial_dims
         )
-        # img_size = ensure_tuple_rep(img_size, self.spatial_dims)
-        # patch_size = ensure_tuple_rep(patch_size, self.spatial_dims)
-        self.num_patches = img_size // patch_size # np.prod([im_d // p_d for im_d, p_d in zip(img_size, patch_size)])
-        self.proj = Conv[Conv.CONV, self.spatial_dims](
-            in_channels=in_chans, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size
-        )
+        self.in_chans = in_chans
+        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
+        img_size = ensure_tuple_rep(img_size, self.spatial_dims)
+        patch_size = ensure_tuple_rep(patch_size, self.spatial_dims)
+        self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
+        self.num_patches = self.grid_size[0] * self.grid_size[1] # np.prod([im_d // p_d for im_d, p_d in zip(img_size, patch_size)])
+        # self.num_patches = self.patch_embed.num_patches
+        # self.proj = Conv[Conv.CONV, self.spatial_dims](
+        #     in_channels=in_chans, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size
+        # )
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
@@ -74,7 +79,7 @@ class MaskedAutoencoderViT(nn.Module):
             for i in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
+        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size[0]**2 * in_chans, bias=True) # decoder to patch
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -91,7 +96,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        w = self.proj.weight.data
+        w = self.patch_embed.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
@@ -120,9 +125,9 @@ class MaskedAutoencoderViT(nn.Module):
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p))
         x = torch.einsum('nchpwq->nhwpqc', x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * self.in_chans))
         return x
 
     def unpatchify(self, x):
@@ -134,9 +139,9 @@ class MaskedAutoencoderViT(nn.Module):
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
         
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, self.in_chans))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
         return imgs
 
     def random_masking(self, x, mask_ratio):
@@ -145,7 +150,7 @@ class MaskedAutoencoderViT(nn.Module):
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
-        N, L, D, _ = x.shape  # batch, length, dim
+        N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
         
         noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
@@ -156,7 +161,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         # keep the first subset
         ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1,1,D).unsqueeze(-1).repeat(1,1,1,D))
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1,1,D)) # unsqueeze(-1).repeat(1,1,1,D))
 
         # generate the binary mask: 0 is keep, 1 is remove
         mask = torch.ones([N, L], device=x.device)
@@ -169,11 +174,12 @@ class MaskedAutoencoderViT(nn.Module):
     def forward_encoder(self, x, mask_ratio):
         # embed patches
         x = self.patch_embed(x)
+        x = x.flatten(2).transpose(1, 2)
 
         # add pos embed w/o cls token
         # x = torch.transpose(x,1,2)
         # x = torch.transpose(x,2,3)
-        x = x + torch.transpose(self.pos_embed[:, 1:, :],2,0)
+        x = x + self.pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
