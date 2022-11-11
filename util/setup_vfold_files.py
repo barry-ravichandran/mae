@@ -73,7 +73,7 @@ def setup_training_vfold(train_files, num_slices):
     )
 
     train_ds = Dataset(
-        data=train_files[0:25],
+        data=train_files,
         transform=train_transforms,
     )
     return train_ds
