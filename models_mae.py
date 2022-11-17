@@ -82,7 +82,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size[0]**2 * in_chans, bias=True) # decoder to patch
         # --------------------------------------------------------------------------
 
-        self.norm_pix_loss = norm_pix_loss
+        self.norm_pix_loss = True # norm_pix_loss
 
         self.initialize_weights()
 
@@ -175,7 +175,11 @@ class MaskedAutoencoderViT(nn.Module):
         # embed patches
         x = self.patch_embed(x)
         x = x.flatten(2).transpose(1, 2)
-
+        x = self.norm(x)
+        x_shape = x.size()
+        if len(x_shape) == 4:
+            wh, ww = x_shape[2], x_shape[3]
+            x = x.transpose(1, 2).view(-1, self.embed_dim, wh, ww)
         # add pos embed w/o cls token
         # x = torch.transpose(x,1,2)
         # x = torch.transpose(x,2,3)
@@ -255,7 +259,7 @@ def mae_vit_base_patch16_dec512d8b(**kwargs):
     return model
 
 
-def mae_vit_large_patch16_dec512d8b(**kwargs):
+def mae_vit_large_patch14_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
         patch_size=14, embed_dim=1024, depth=24, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
@@ -273,5 +277,5 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
 
 # set recommended archs
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_vit_large_patch14 = mae_vit_large_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
