@@ -97,7 +97,7 @@ class MaskedAutoencoderSwinViT(nn.Module):
             elif i_layer == 3:
                 self.layers4.append(layer)
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
-        # self.norm = norm_layer(embed_dim)
+        self.norm = norm_layer(embed_dim)
         # --------------------------------------------------------------------------
         # --------------------------------------------------------------------------
         # MAE decoder specifics
@@ -116,7 +116,7 @@ class MaskedAutoencoderSwinViT(nn.Module):
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size[0]**2 * in_chans, bias=True) # decoder to patch
         # --------------------------------------------------------------------------
 
-        self.norm_pix_loss = norm_pix_loss
+        self.norm_pix_loss = True
 
         self.initialize_weights()
 
@@ -224,7 +224,11 @@ class MaskedAutoencoderSwinViT(nn.Module):
         # embed patches
         x = self.patch_embed(x)
         x = x.flatten(2).transpose(1, 2)
-
+        x = self.norm(x)
+        x_shape = x.size()
+        if len(x_shape) == 4:
+            wh, ww = x_shape[2], x_shape[3]
+            x = x.transpose(1, 2).view(-1, self.embed_dim, wh, ww)
         # add pos embed w/o cls token
         # x = torch.transpose(x,1,2)
         # x = torch.transpose(x,2,3)
