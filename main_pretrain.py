@@ -129,7 +129,7 @@ def main(args):
     num_slices = 3
     train_files = setup_vfold_files(img_dir, prefix, num_folds)
     train_ds = setup_training_vfold(train_files, num_slices)
-    if False:  # args.distributed:
+    if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(

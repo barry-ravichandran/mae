@@ -41,8 +41,10 @@ class MaskedAutoencoderSwinViT(nn.Module):
         # MAE encoder specifics
         self.spatial_dims = 2
         self.num_layers = len(depths)
+        patch_size = ensure_tuple_rep(2, self.spatial_dims)
+        self.patch_size = patch_size
         self.patch_embed = PatchEmbed(
-            patch_size=patch_size,
+            patch_size=self.patch_size,
             in_chans=in_chans,
             embed_dim=embed_dim,
             norm_layer=norm_layer,
@@ -51,7 +53,6 @@ class MaskedAutoencoderSwinViT(nn.Module):
         self.in_chans = in_chans
         # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
         img_size = ensure_tuple_rep(img_size, self.spatial_dims)
-        patch_size = ensure_tuple_rep(patch_size, self.spatial_dims)
         self.window_size = ensure_tuple_rep(7, self.spatial_dims)
         self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
         self.num_patches = self.grid_size[0] * self.grid_size[1] # np.prod([im_d // p_d for im_d, p_d in zip(img_size, patch_size)])
@@ -311,38 +312,20 @@ class MaskedAutoencoderSwinViT(nn.Module):
         return loss, pred, mask
 
 
-# def mae_vit_base_patch16_dec512d8b(**kwargs):
-#     model = MaskedAutoencoderViT(
-#         patch_size=16, embed_dim=768, depth=12, num_heads=12,
-#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-#     return model
-
-
-# def mae_vit_large_patch16_dec512d8b(**kwargs):
-#     model = MaskedAutoencoderViT(
-#         patch_size=14, embed_dim=1024, depth=24, num_heads=16,
-#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-#     return model
-
-
-# def mae_vit_huge_patch14_dec512d8b(**kwargs):
-#     model = MaskedAutoencoderViT(
-#         patch_size=14, embed_dim=1280, depth=32, num_heads=16,
-#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-#     return model
-
-def mae_swinvit_large_patch14_params(**kwargs):
+def mae_swinvit_base_patch16_params(**kwargs):
     model = MaskedAutoencoderSwinViT(
-        patch_size=14, embed_dim=1024, depth=24, num_heads=(3, 6, 12, 24),
+        patch_size=16, embed_dim=768, depth=12, num_heads=(3, 6, 12, 24),
+        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+def mae_swinvit_large_patch16_params(**kwargs):
+    model = MaskedAutoencoderSwinViT(
+        patch_size=16, embed_dim=1024, depth=24, num_heads=(3, 6, 12, 24),
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 # set recommended archs
-# mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-# mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-# mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_swinvit_large_patch14 = mae_swinvit_large_patch14_params
+mae_swinvit_base_patch16 = mae_swinvit_base_patch16_params
+mae_swinvit_large_patch16 = mae_swinvit_large_patch16_params
